@@ -1,194 +1,79 @@
-from tkinter import *
-from tkinter import messagebox
-from tkinter import ttk  # NEW: for Combobox
-import os
+import streamlit as st
+from datetime import datetime
+import io
+from PIL import Image
 
-try:
-    from PIL import Image, ImageTk
-    PIL_AVAILABLE = True
-except Exception:
-    PIL_AVAILABLE = False
+st.set_page_config(page_title="Shiv Travels", page_icon="🚌", layout="centered")
+st.title("🚌 Shiv Travels – Booking Form")
 
-root = Tk()
-root.title("Shiv Travels")
+# Session storage for this run
+if "rows" not in st.session_state:
+    st.session_state.rows = []
 
-def getvals():
-
-    if gendervalu.get() not in ("Male", "Female", "Other"):
-        messagebox.showerror("Missing Gender", "Please select a valid Gender: Male, Female, or Other.")
-        return
-
-
-    if not namevalu.get().strip():
-        messagebox.showerror("Missing Name", "Please enter your name.")
-        return
-    if len(phone_real) != 10:
-        messagebox.showerror("Invalid Phone", "Please enter a 10-digit phone number.")
-        return
-
-    print("Submitting Form")
-    record = (
-        f"{namevalu.get().strip()},"
-        f"{phone_real},"
-        f"{gendervalu.get().strip()},"
-        f"{emergencyvalu.get().strip()},"
-        f"{paymentmoodvalu.get().strip()},"
-        f"{foodservicevalue.get()}\n"
-    )
-    print(record.strip())
-    with open("records.txt", "a", encoding="utf-8") as f:
-        f.write(record)
-    messagebox.showinfo("Saved", "Your details have been saved.")
-
-# ---------- OPTPUT size ----------
-root.geometry("520x650")
-root.minsize(820, 850)   # FIXED: minsize should not exceed maxsize/geometry
-root.maxsize(800, 800)
-
-# ---------- Heading ----------
-Label(root, text="Welcome to Shiv Travels", font="comicsansms 13 bold", pady=14).grid(row=0, column=3)
-
-# ---------- Labels ----------
-Label(root, text="Name").grid(row=1, column=2)
-Label(root, text="Phone").grid(row=2, column=2)
-Label(root, text="Gender").grid(row=3, column=2)
-Label(root, text="Emergency Contact").grid(row=4, column=2)
-Label(root, text="Payment Mode").grid(row=5, column=2)
-
-# ---------- Variables ----------
-namevalu = StringVar()
-gendervalu = StringVar()
-emergencyvalu = StringVar()
-paymentmoodvalu = StringVar(value="Cash")  # Cash / Card / Online
-foodservicevalue = IntVar()
-phone_real = ""     # to store full number (unmasked)
-
-# ---------- Entry Box Style ----------
-entry_style = {"bd": 2, "relief": "solid", "font": ("Segoe UI", 10)}
-
-# ---------- Entries ----------
-nameentry = Entry(root, textvariable=namevalu, **entry_style)
-phoneentry = Entry(root, **entry_style)
-
-# NEW: Gender as read-only dropdown
-genderentry = ttk.Combobox(
-    root,
-    textvariable=gendervalu,
-    values=("Male", "Female", "Other"),
-    state="readonly",
-    font=("Segoe UI", 10)
-)
-genderentry.set("Select")  # placeholder
-
-emergecyentry = Entry(root, textvariable=emergencyvalu, **entry_style)
-paymentmoodentry = Entry(root, textvariable=paymentmoodvalu, **entry_style)
-
-# ---------- Grid ----------
-nameentry.grid(row=1, column=3, ipady=4, padx=4, pady=2, sticky="we")
-phoneentry.grid(row=2, column=3, ipady=4, padx=4, pady=2, sticky="we")
-genderentry.grid(row=3, column=3, ipady=2, padx=4, pady=2, sticky="we")  # Combobox
-emergecyentry.grid(row=4, column=3, ipady=4, padx=4, pady=2, sticky="we")
-paymentmoodentry.grid(row=5, column=3, ipady=4, padx=4, pady=2, sticky="we")
-
-# ---------- Phone Mask (********51) ----------
 def mask_number(num: str) -> str:
-    n = len(num)
-    if n <= 2:
-        return num
-    return "*" * (n - 2) + num[-2:]
+    return "*" * (len(num) - 2) + num[-2:] if len(num) > 2 else num
 
-def on_phone_key(event):
-    global phone_real
-    if event.keysym == "BackSpace":
-        phone_real = phone_real[:-1]
-    elif event.char.isdigit() and len(phone_real) < 10:
-        phone_real += event.char
-    phoneentry.delete(0, END)
-    phoneentry.insert(0, mask_number(phone_real))
-    phoneentry.icursor(END)
-    return "break"
+def validate_phone(num: str) -> bool:
+    return num.isdigit() and len(num) == 10
 
-phoneentry.bind("<KeyPress>", on_phone_key)
+with st.form("booking_form", clear_on_submit=False):
+    col1, col2 = st.columns(2)
+    name = col1.text_input("Name", placeholder="Your full name")
+    phone = col2.text_input("Phone (10 digits)", max_chars=10, placeholder="98XXXXXXXX")
 
-# ---------- Payment Mode (Cash/Card/Online) ----------
-pm_frame = Frame(root)
-pm_frame.grid(row=6, column=3, sticky="w", pady=4)
+    gender = st.selectbox("Gender", ["Select", "Male", "Female", "Other"], index=0)
+    emergency = st.text_input("Emergency Contact (optional)")
 
-def set_payment(val):
-    paymentmoodvalu.set(val)
-    update_payment_ui()
+    payment = st.radio("Payment Mode", ["Cash", "Card", "Online"], horizontal=True)
 
-Radiobutton(pm_frame, text="Cash",   variable=paymentmoodvalu, value="Cash",
-            command=lambda: set_payment("Cash")).pack(side=LEFT)
-Radiobutton(pm_frame, text="Card",   variable=paymentmoodvalu, value="Card",
-            command=lambda: set_payment("Card")).pack(side=LEFT)
-Radiobutton(pm_frame, text="Online", variable=paymentmoodvalu, value="Online",
-            command=lambda: set_payment("Online")).pack(side=LEFT)
+    # Show QR only for Online
+    if payment == "Online":
+        st.caption("Scan this QR to pay:")
+        try:
+            img = Image.open("qr.jpg")   # keep qr.jpg next to app.py
+            st.image(img, width=260)
+        except Exception:
+            st.warning("QR image not found. Add a file named **qr.jpg** next to app.py.")
 
-# ---------- QR Image Area ----------
-qr_frame = Frame(root)
-qr_frame.grid(row=7, column=3, sticky="we", pady=(6, 2))
-qr_title = Label(qr_frame, text="Scan to Pay", font=("Segoe UI", 10, "bold"))
-qr_img_label = Label(qr_frame)
-qr_hint = Label(qr_frame, text="UPI/QR ke through payment karein.", font=("Segoe UI", 9))
+    prebook_meal = st.checkbox("Want to prebook your meals?")
+    submitted = st.form_submit_button("Submit")
 
-QR_PATH = r"D:\python\GUI problam solving\Shiv_Travels.jpg"
-qr_photo_ref = {"img": None}
+if submitted:
+    errors = []
+    if not name.strip():
+        errors.append("Name is required.")
+    if not validate_phone(phone):
+        errors.append("Phone must be 10 digits.")
+    if gender not in ("Male", "Female", "Other"):
+        errors.append("Please select a valid Gender.")
 
-def load_qr_image(path):
-    if not os.path.exists(path):
-        return None
-    ext = os.path.splitext(path)[1].lower()
-    try:
-        if ext in [".png", ".gif"]:
-            return PhotoImage(file=path)  # native support
-        # JPG/JPEG ke liye PIL
-        if PIL_AVAILABLE:
-            img_pil = Image.open(path)
-            max_w = 320
-            if img_pil.width > max_w:
-                ratio = max_w / img_pil.width
-                img_pil = img_pil.resize((int(img_pil.width * ratio), int(img_pil.height * ratio)))
-            return ImageTk.PhotoImage(img_pil)
-        else:
-            return None
-    except Exception as e:
-        print("QR load error:", e)
-        return None
-
-def update_payment_ui():
-    if paymentmoodvalu.get() == "Online":
-        img = load_qr_image(QR_PATH)
-        if img is None:
-            msg = "QR not found OR Pillow not installed for .jpg\nFix: pip install pillow  (ya file path check karo)"
-            qr_title.config(text="QR not available", fg="red")
-            qr_img_label.config(image="", text=msg, justify="left")
-            qr_img_label.grid(row=1, column=0, pady=4, sticky="w")
-            qr_photo_ref["img"] = None
-            qr_title.grid(row=0, column=0, sticky="w")
-            qr_hint.grid_forget()
-        else:
-            qr_title.config(text="Scan to Pay", fg="black")
-            qr_photo_ref["img"] = img
-            qr_img_label.config(image=img, text="")
-            qr_title.grid(row=0, column=0, sticky="w")
-            qr_img_label.grid(row=1, column=0, pady=4, sticky="w")
-            qr_hint.grid(row=2, column=0, sticky="w")
+    if errors:
+        st.error(" | ".join(errors))
     else:
-        qr_title.grid_forget()
-        qr_img_label.grid_forget()
-        qr_hint.grid_forget()
+        row = {
+            "name": name.strip(),
+            "phone": phone.strip(),
+            "gender": gender,
+            "emergency": emergency.strip(),
+            "payment": payment,
+            "prebook_meal": int(prebook_meal),
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        st.session_state.rows.append(row)
+        st.success(
+            f"Saved: {name.strip()}, {mask_number(phone)}, {gender}, {emergency or '-'}, {payment}, {int(prebook_meal)}"
+        )
 
-update_payment_ui()
+# Show table + CSV download
+if st.session_state.rows:
+    st.subheader("Current Submissions (this session)")
+    st.dataframe(st.session_state.rows, use_container_width=True)
 
-# ---------- Checkbox ----------
-foodservice = Checkbutton(text="Want to prebook your meals?", variable=foodservicevalue)
-foodservice.grid(row=8, column=3, pady=4, sticky="w")
-
-# ---------- Submit Button ----------
-Button(text="Login to Shiv Travels", command=getvals).grid(row=9, column=3, pady=8, sticky="e")
-
-# allow column 3 to stretch
-root.grid_columnconfigure(3, weight=1)
-
-root.mainloop()
+    import csv
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=list(st.session_state.rows[0].keys()))
+    writer.writeheader()
+    writer.writerows(st.session_state.rows)
+    st.download_button("Download CSV", data=buf.getvalue(), file_name="records.csv", mime="text/csv")
+else:
+    st.info("No submissions yet.")

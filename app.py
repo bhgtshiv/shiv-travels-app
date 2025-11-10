@@ -185,34 +185,26 @@ if st.session_state.rows:
 else:
     st.info("No bookings yet this session.")
 
-# ------------------- ADMIN PANEL -------------------
+# ------------------- ADMIN PANEL (NO PIN) -------------------
 st.divider()
-st.subheader("🔐 Admin Dashboard")
+st.subheader("⚙️ Admin Dashboard")
 
-pin = st.text_input("Enter Admin PIN", type="password")
-if pin == "1234":
-    st.success("Admin Access Granted ✅")
+# route inventory management
+st.write("### Seat Inventory")
+for (fr, to), stock in st.session_state.inventory.items():
+    c1, c2, c3 = st.columns(3)
+    c1.write(f"{fr} → {to}")
+    ac_val = c2.number_input(f"AC seats ({fr}->{to})", value=int(stock["AC"]), key=f"ac_{fr}_{to}")
+    nac_val = c3.number_input(f"Non-AC seats ({fr}->{to})", value=int(stock["Non-AC"]), key=f"nac_{fr}_{to}")
+    st.session_state.inventory[(fr, to)] = {"AC": ac_val, "Non-AC": nac_val}
 
-    # route inventory management
-    st.write("### Seat Inventory")
-    for (fr, to), stock in st.session_state.inventory.items():
-        c1, c2, c3 = st.columns(3)
-        c1.write(f"{fr} → {to}")
-        ac_val = c2.number_input(f"AC seats ({fr}->{to})", value=int(stock["AC"]), key=f"ac_{fr}_{to}")
-        nac_val = c3.number_input(f"Non-AC seats ({fr}->{to})", value=int(stock["Non-AC"]), key=f"nac_{fr}_{to}")
-        st.session_state.inventory[(fr, to)] = {"AC": ac_val, "Non-AC": nac_val}
+st.divider()
+st.metric("Total Bookings", len(st.session_state.rows))
+ac_count = sum(1 for r in st.session_state.rows if r["coach"] == "AC")
+nac_count = len(st.session_state.rows) - ac_count
+st.metric("AC Bookings", ac_count)
+st.metric("Non-AC Bookings", nac_count)
 
-    st.divider()
-    st.metric("Total Bookings", len(st.session_state.rows))
-    ac_count = sum(1 for r in st.session_state.rows if r["coach"] == "AC")
-    nac_count = len(st.session_state.rows) - ac_count
-    st.metric("AC Bookings", ac_count)
-    st.metric("Non-AC Bookings", nac_count)
-
-    if st.button("Reset Session Data"):
-        st.session_state.rows = []
-        st.success("Session cleared.")
-elif pin:
-    st.error("Incorrect PIN ❌")
-else:
-    st.info("Enter PIN to manage routes or reset data.")
+if st.button("Reset Session Data"):
+    st.session_state.rows = []
+    st.success("Session cleared.")
